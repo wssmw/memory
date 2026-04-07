@@ -3,14 +3,24 @@ import jwt from 'jsonwebtoken';
 import prisma from '../database/prisma';
 import { config } from '../config';
 import { AppError } from '../middleware/errorHandler';
-import { generateInviteCode } from '../utils/helpers';
+
+function mapMembershipToLegacyFields(membership?: {
+  familyId: string;
+  role: string | null;
+} | null) {
+  return {
+    coupleId: membership?.familyId ?? null,
+    familyId: membership?.familyId ?? null,
+    role: membership?.role ?? null,
+  };
+}
 
 export class AuthService {
   async register(
     email: string,
     password: string,
     name: string,
-    role: 'husband' | 'wife'
+    _role: 'husband' | 'wife'
   ) {
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -27,25 +37,32 @@ export class AuthService {
         email,
         password: hashedPassword,
         name,
-        role,
       },
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
-        coupleId: true,
         createdAt: true,
       },
     });
 
-    const accessToken = this.generateAccessToken(user);
-    const refreshToken = this.generateRefreshToken(user);
+    const legacyFields = mapMembershipToLegacyFields(null);
+
+    const accessToken = this.generateAccessToken({
+      id: user.id,
+      email: user.email,
+      ...legacyFields,
+    });
+    const refreshToken = this.generateRefreshToken({
+      id: user.id,
+      email: user.email,
+      ...legacyFields,
+    });
 
     return {
       user: {
         ...user,
-        coupleId: user.coupleId,
+        ...legacyFields,
       },
       accessToken,
       refreshToken,
@@ -55,6 +72,13 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        familyMembers: {
+          where: { status: 'active' },
+          orderBy: { joinedAt: 'asc' },
+          take: 1,
+        },
+      },
     });
 
     if (!user) {
@@ -67,18 +91,26 @@ export class AuthService {
       throw new AppError('INVALID_CREDENTIALS', '邮箱或密码错误', 401);
     }
 
+    const membership = user.familyMembers[0];
+    const legacyFields = mapMembershipToLegacyFields(
+      membership
+        ? {
+            familyId: membership.familyId,
+            role: membership.role,
+          }
+        : null
+    );
+
     const accessToken = this.generateAccessToken({
       id: user.id,
       email: user.email,
-      role: user.role,
-      coupleId: user.coupleId,
+      ...legacyFields,
     });
 
     const refreshToken = this.generateRefreshToken({
       id: user.id,
       email: user.email,
-      role: user.role,
-      coupleId: user.coupleId,
+      ...legacyFields,
     });
 
     return {
@@ -86,8 +118,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
-        coupleId: user.coupleId,
+        ...legacyFields,
       },
       accessToken,
       refreshToken,
@@ -95,21 +126,18 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    // JWT 是无状态的，登出主要由客户端处理（删除 token）
-    // 这里可以添加黑名单逻辑，如果需要立即使 token 失效
     return { success: true };
   }
 
   async getCurrentUser(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        coupleId: true,
-        createdAt: true,
+      include: {
+        familyMembers: {
+          where: { status: 'active' },
+          orderBy: { joinedAt: 'asc' },
+          take: 1,
+        },
       },
     });
 
@@ -117,14 +145,32 @@ export class AuthService {
       throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
     }
 
-    return user;
+    const membership = user.familyMembers[0];
+    const legacyFields = mapMembershipToLegacyFields(
+      membership
+        ? {
+            familyId: membership.familyId,
+            role: membership.role,
+          }
+        : null
+    );
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      ...legacyFields,
+    };
   }
 
   private generateAccessToken(payload: {
     id: string;
     email: string;
-    role: string;
+    role: string | null;
     coupleId: string | null;
+    familyId: string | null;
   }): string {
     return jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.accessTokenExpiresIn as any,
@@ -134,8 +180,9 @@ export class AuthService {
   private generateRefreshToken(payload: {
     id: string;
     email: string;
-    role: string;
+    role: string | null;
     coupleId: string | null;
+    familyId: string | null;
   }): string {
     return jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.refreshTokenExpiresIn as any,
@@ -148,17 +195,33 @@ export class AuthService {
 
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
+        include: {
+          familyMembers: {
+            where: { status: 'active' },
+            orderBy: { joinedAt: 'asc' },
+            take: 1,
+          },
+        },
       });
 
       if (!user) {
         throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
       }
 
+      const membership = user.familyMembers[0];
+      const legacyFields = mapMembershipToLegacyFields(
+        membership
+          ? {
+              familyId: membership.familyId,
+              role: membership.role,
+            }
+          : null
+      );
+
       const newAccessToken = this.generateAccessToken({
         id: user.id,
         email: user.email,
-        role: user.role,
-        coupleId: user.coupleId,
+        ...legacyFields,
       });
 
       return { accessToken: newAccessToken };

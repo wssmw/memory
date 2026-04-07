@@ -2,22 +2,44 @@ import prisma from '../database/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { Prisma } from '@prisma/client';
 
+async function getActiveFamilyMembership(userId: string) {
+  return prisma.familyMember.findFirst({
+    where: {
+      userId,
+      status: 'active',
+    },
+    orderBy: {
+      joinedAt: 'asc',
+    },
+  });
+}
+
+function buildLegacyUser(user: {
+  id: string;
+  name: string;
+  familyMembers?: { familyId: string; role: string | null }[];
+}) {
+  const membership = user.familyMembers?.[0];
+
+  return {
+    id: user.id,
+    name: user.name,
+    role: membership?.role ?? null,
+    coupleId: membership?.familyId ?? null,
+    familyId: membership?.familyId ?? null,
+  };
+}
+
 export class StatisticsService {
   async getHomeOverview(userId: string, recentLimit: number = 10) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
     const where: any = {
-      coupleId: user.coupleId,
+      familyId: membership.familyId,
       deletedAt: null,
     };
 
@@ -39,7 +61,17 @@ export class StatisticsService {
             select: {
               id: true,
               name: true,
-              role: true,
+              familyMembers: {
+                where: {
+                  familyId: membership.familyId,
+                  status: 'active',
+                },
+                select: {
+                  familyId: true,
+                  role: true,
+                },
+                take: 1,
+              },
             },
           },
         },
@@ -54,25 +86,22 @@ export class StatisticsService {
       balance,
       totalIncome,
       totalExpense,
-      recentRecords,
+      recentRecords: recentRecords.map((record) => ({
+        ...record,
+        user: buildLegacyUser(record.user),
+      })),
     };
   }
 
   async getSummary(userId: string, startDate?: string, endDate?: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
     const where: any = {
-      coupleId: user.coupleId,
+      familyId: membership.familyId,
       deletedAt: null,
     };
 
@@ -110,20 +139,14 @@ export class StatisticsService {
   }
 
   async getByCategory(userId: string, startDate?: string, endDate?: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
     const where: any = {
-      coupleId: user.coupleId,
+      familyId: membership.familyId,
       deletedAt: null,
     };
 
@@ -166,20 +189,14 @@ export class StatisticsService {
   }
 
   async getByPerson(userId: string, startDate?: string, endDate?: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
     const where: any = {
-      coupleId: user.coupleId,
+      familyId: membership.familyId,
       deletedAt: null,
     };
 
@@ -248,15 +265,9 @@ export class StatisticsService {
   }
 
   async getByMonth(userId: string, year?: number) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
@@ -265,7 +276,7 @@ export class StatisticsService {
     const endDate = new Date(`${currentYear}-12-31`);
 
     const where: any = {
-      coupleId: user.coupleId,
+      familyId: membership.familyId,
       deletedAt: null,
       date: {
         gte: startDate,

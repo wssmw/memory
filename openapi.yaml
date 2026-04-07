@@ -1,0 +1,311 @@
+openapi: 3.0.3
+info:
+  title: Accounting Tool API
+  version: 1.0.0
+  description: 可直接导入 Apifox 的 OpenAPI 文件
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterReq:
+      type: object
+      required: [email, password, name, role]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+        name: { type: string }
+        role: { type: string, enum: [husband, wife] }
+    LoginReq:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    RefreshReq:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    CoupleReq:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [husband, wife] }
+    JoinReq:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode: { type: string, minLength: 6, maxLength: 6 }
+    RecordReq:
+      type: object
+      required: [amount, type, category, person, date]
+      properties:
+        amount: { type: number }
+        type: { type: string, enum: [income, expense] }
+        category:
+          type: string
+          enum: [food, transport, shopping, entertainment, house, medical, education, other_expense, salary, bonus, investment, other_income]
+        person: { type: string, enum: [husband, wife] }
+        date: { type: string, example: '2026-04-07' }
+        note: { type: string }
+    RecordUpdateReq:
+      type: object
+      properties:
+        amount: { type: number }
+        type: { type: string, enum: [income, expense] }
+        category:
+          type: string
+          enum: [food, transport, shopping, entertainment, house, medical, education, other_expense, salary, bonus, investment, other_income]
+        person: { type: string, enum: [husband, wife] }
+        date: { type: string }
+        note: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        avatar: { type: string, nullable: true }
+        role: { type: string, nullable: true }
+        coupleId: { type: string, nullable: true }
+        familyId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    AuthData:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+    CoupleInfo:
+      type: object
+      properties:
+        id: { type: string }
+        inviteCode: { type: string }
+        familyName: { type: string }
+        maxMembers: { type: integer }
+        users:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        createdAt: { type: string, format: date-time }
+    Record:
+      type: object
+      properties:
+        id: { type: string }
+        familyId: { type: string }
+        userId: { type: string }
+        amount: { type: number }
+        type: { type: string, enum: [income, expense] }
+        category: { type: string }
+        person: { type: string, enum: [husband, wife] }
+        date: { type: string, format: date-time }
+        note: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/User' }
+    Success:
+      type: object
+      properties:
+        success: { type: boolean }
+        statusCode: { type: integer }
+        message: { type: string }
+        timestamp: { type: integer }
+    Error:
+      type: object
+      properties:
+        success: { type: boolean }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+        timestamp: { type: integer }
+security:
+  - BearerAuth: []
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterReq' }
+      responses:
+        '201': { description: ok }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginReq' }
+      responses:
+        '200': { description: ok }
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出
+      responses:
+        '200': { description: ok }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: 当前用户
+      responses:
+        '200': { description: ok }
+  /api/auth/refresh-access-token:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 刷新 token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshReq' }
+      responses:
+        '200': { description: ok }
+  /api/couples/create:
+    post:
+      tags: [Couples]
+      summary: 创建家庭
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoupleReq' }
+      responses:
+        '201': { description: ok }
+  /api/couples/join:
+    post:
+      tags: [Couples]
+      summary: 加入家庭
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JoinReq' }
+      responses:
+        '200': { description: ok }
+  /api/couples/info:
+    get:
+      tags: [Couples]
+      summary: 家庭信息
+      responses:
+        '200': { description: ok }
+  /api/records:
+    get:
+      tags: [Records]
+      summary: 记录列表
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+        - { name: type, in: query, schema: { type: string, enum: [income, expense] } }
+        - { name: start_date, in: query, schema: { type: string } }
+        - { name: end_date, in: query, schema: { type: string } }
+        - { name: person, in: query, schema: { type: string, enum: [husband, wife] } }
+      responses:
+        '200': { description: ok }
+    post:
+      tags: [Records]
+      summary: 创建记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordReq' }
+      responses:
+        '201': { description: ok }
+  /api/records/grouped-by-date:
+    get:
+      tags: [Records]
+      summary: 按日期分组记录
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+        - { name: type, in: query, schema: { type: string, enum: [income, expense] } }
+        - { name: start_date, in: query, schema: { type: string } }
+        - { name: end_date, in: query, schema: { type: string } }
+        - { name: person, in: query, schema: { type: string, enum: [husband, wife] } }
+      responses:
+        '200': { description: ok }
+  /api/records/{id}:
+    get:
+      tags: [Records]
+      summary: 记录详情
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+    put:
+      tags: [Records]
+      summary: 更新记录
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordUpdateReq' }
+      responses:
+        '200': { description: ok }
+    delete:
+      tags: [Records]
+      summary: 删除记录
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /api/statistics/home-overview:
+    get:
+      tags: [Statistics]
+      summary: 首页概览
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        '200': { description: ok }
+  /api/statistics/summary:
+    get:
+      tags: [Statistics]
+      summary: 汇总统计
+      parameters:
+        - { name: start_date, in: query, schema: { type: string } }
+        - { name: end_date, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /api/statistics/by-category:
+    get:
+      tags: [Statistics]
+      summary: 分类统计
+      parameters:
+        - { name: start_date, in: query, schema: { type: string } }
+        - { name: end_date, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /api/statistics/by-person:
+    get:
+      tags: [Statistics]
+      summary: 人员统计
+      parameters:
+        - { name: start_date, in: query, schema: { type: string } }
+        - { name: end_date, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /api/statistics/by-month:
+    get:
+      tags: [Statistics]
+      summary: 月度统计
+      parameters:
+        - { name: year, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: ok }

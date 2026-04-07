@@ -1,18 +1,61 @@
 import prisma from '../database/prisma';
+import { FamilyRole } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { generateInviteCode } from '../utils/helpers';
+
+async function getActiveFamilyMembership(userId: string) {
+  return prisma.familyMember.findFirst({
+    where: {
+      userId,
+      status: 'active',
+    },
+    include: {
+      family: true,
+    },
+    orderBy: {
+      joinedAt: 'asc',
+    },
+  });
+}
+
+function toLegacyUser(user: {
+  id: string;
+  email: string;
+  name: string;
+  createdAt?: Date;
+  membership?: {
+    familyId: string;
+    role: string | null;
+  } | null;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.membership?.role ?? null,
+    coupleId: user.membership?.familyId ?? null,
+    familyId: user.membership?.familyId ?? null,
+    ...(user.createdAt ? { createdAt: user.createdAt } : {}),
+  };
+}
 
 export class CoupleService {
   async createCouple(userId: string, role: 'husband' | 'wife') {
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
     });
 
     if (!user) {
       throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
     }
 
-    if (user.coupleId) {
+    const existingMembership = await getActiveFamilyMembership(userId);
+    if (existingMembership) {
       throw new AppError('ALREADY_IN_COUPLE', '用户已加入家庭', 400);
     }
 
@@ -20,7 +63,7 @@ export class CoupleService {
     let exists = true;
 
     while (exists) {
-      const existing = await prisma.couple.findUnique({
+      const existing = await prisma.family.findUnique({
         where: { inviteCode },
       });
       if (!existing) {
@@ -30,146 +73,215 @@ export class CoupleService {
       }
     }
 
-    const couple = await prisma.couple.create({
+    const family = await prisma.family.create({
       data: {
         inviteCode,
-        users: {
-          connect: { id: userId },
-        },
-      },
-      include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
+        members: {
+          create: {
+            userId,
+            role,
+            status: 'active',
           },
         },
       },
-    });
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        coupleId: couple.id,
-        role,
+      include: {
+        members: {
+          where: { status: 'active' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
       },
     });
 
     return {
-      id: couple.id,
-      inviteCode: couple.inviteCode,
-      users: couple.users,
-      createdAt: couple.createdAt,
+      id: family.id,
+      inviteCode: family.inviteCode,
+      familyName: family.name,
+      maxMembers: family.maxMembers,
+      users: family.members.map((member) =>
+        toLegacyUser({
+          ...member.user,
+          membership: {
+            familyId: member.familyId,
+            role: member.role,
+          },
+        })
+      ),
+      createdAt: family.createdAt,
     };
   }
 
   async joinCouple(userId: string, inviteCode: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
     });
 
     if (!user) {
       throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
     }
 
-    if (user.coupleId) {
+    const existingMembership = await getActiveFamilyMembership(userId);
+    if (existingMembership) {
       throw new AppError('ALREADY_IN_COUPLE', '用户已加入家庭', 400);
     }
 
-    const couple = await prisma.couple.findUnique({
+    const family = await prisma.family.findUnique({
       where: { inviteCode },
       include: {
-        users: true,
+        members: {
+          where: { status: 'active' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
       },
     });
 
-    if (!couple) {
+    if (!family) {
       throw new AppError('INVALID_INVITE_CODE', '邀请码无效', 404);
     }
 
-    if (couple.users.length >= 2) {
-      throw new AppError('COUPLE_FULL', '家庭已满员（最多 2 人）', 400);
+    if (family.members.length >= family.maxMembers) {
+      throw new AppError('COUPLE_FULL', '家庭已满员', 400);
     }
 
-    const existingUser = couple.users.find((u) => u.role === user.role);
-    if (existingUser) {
-      throw new AppError(
-        'ROLE_CONFLICT',
-        `家庭中已有${user.role === 'husband' ? '丈夫' : '妻子'}`,
-        400
-      );
-    }
+    const currentRoles = family.members
+      .map((member) => member.role)
+      .filter((item): item is FamilyRole => item !== null);
 
-    await prisma.user.update({
-      where: { id: userId },
+    const createdRole = roleFromExistingMembers(currentRoles);
+
+
+
+    await prisma.familyMember.create({
       data: {
-        coupleId: couple.id,
+        familyId: family.id,
+        userId,
+        role: createdRole,
+        status: 'active',
       },
     });
 
-    const updatedCouple = await prisma.couple.findUnique({
-      where: { id: couple.id },
+    const updatedFamily = await prisma.family.findUnique({
+      where: { id: family.id },
       include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
+        members: {
+          where: { status: 'active' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                createdAt: true,
+              },
+            },
           },
+          orderBy: { joinedAt: 'asc' },
         },
       },
     });
 
     return {
-      id: updatedCouple!.id,
-      inviteCode: updatedCouple!.inviteCode,
-      users: updatedCouple!.users,
-      createdAt: updatedCouple!.createdAt,
+      id: updatedFamily!.id,
+      inviteCode: updatedFamily!.inviteCode,
+      familyName: updatedFamily!.name,
+      maxMembers: updatedFamily!.maxMembers,
+      users: updatedFamily!.members.map((member) =>
+        toLegacyUser({
+          ...member.user,
+          membership: {
+            familyId: member.familyId,
+            role: member.role,
+          },
+        })
+      ),
+      createdAt: updatedFamily!.createdAt,
     };
   }
 
   async getCoupleInfo(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const membership = await getActiveFamilyMembership(userId);
 
-    if (!user) {
-      throw new AppError('USER_NOT_FOUND', '用户不存在', 404);
-    }
-
-    if (!user.coupleId) {
+    if (!membership) {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 404);
     }
 
-    const couple = await prisma.couple.findUnique({
-      where: { id: user.coupleId },
+    const family = await prisma.family.findUnique({
+      where: { id: membership.familyId },
       include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-            createdAt: true,
+        members: {
+          where: { status: 'active' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                createdAt: true,
+              },
+            },
           },
+          orderBy: { joinedAt: 'asc' },
         },
       },
     });
 
-    if (!couple) {
+    if (!family) {
       throw new AppError('COUPLE_NOT_FOUND', '家庭不存在', 404);
     }
 
     return {
-      id: couple.id,
-      inviteCode: couple.inviteCode,
-      users: couple.users,
-      createdAt: couple.createdAt,
+      id: family.id,
+      inviteCode: family.inviteCode,
+      familyName: family.name,
+      maxMembers: family.maxMembers,
+      users: family.members.map((member) =>
+        toLegacyUser({
+          ...member.user,
+          membership: {
+            familyId: member.familyId,
+            role: member.role,
+          },
+        })
+      ),
+      createdAt: family.createdAt,
     };
   }
+}
+
+function roleFromExistingMembers(existingRoles: FamilyRole[]): FamilyRole {
+  if (!existingRoles.includes('husband')) {
+    return 'husband';
+  }
+
+  if (!existingRoles.includes('wife')) {
+    return 'wife';
+  }
+
+  return 'other';
 }
 
 export const coupleService = new CoupleService();
