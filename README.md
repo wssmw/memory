@@ -1,4 +1,4 @@
-# 夫妻记账工具后端 API
+# 后端API
 
 基于 Node.js + Express + TypeScript + Prisma + MySQL 的 RESTful API 服务
 
@@ -24,6 +24,7 @@
 - ✅ 请求频率限制
 - ✅ 日志记录
 - ✅ Docker 容器化部署
+- ✅ 家庭生活模块（日记、照片、心愿、纪念日）
 
 ## 快速开始
 
@@ -82,216 +83,31 @@ npm run dev
 
 ## API 文档
 
-### 认证接口
+接口地址、请求方式、请求体、鉴权要求与参数定义，统一以 `openapi.yaml` 为准。
 
-#### 用户注册
+### 推荐使用方式
 
-```http
-POST /api/auth/register
-Content-Type: application/json
+- 将 `accountingTool/openapi.yaml` 导入 Apifox / Swagger / Postman
+- 前后端联调时优先参考 OpenAPI，而不是 README
+- README 只保留功能说明、开发说明、部署说明和通用约定
 
-{
-  "email": "user@example.com",
-  "password": "password123",
-  "name": "张三",
-  "role": "husband"
-}
-```
+### 当前已覆盖模块
 
-#### 用户登录
+- 认证
+- 家庭
+- 记账记录
+- 统计分析
+- 日记
+- 照片与上传
+- 心愿
+- 纪念日
 
-```http
-POST /api/auth/login
-Content-Type: application/json
+### 通用认证说明
 
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-#### 获取当前用户信息
-
-```http
-GET /api/auth/me
-Authorization: Bearer <access_token>
-```
-
-#### 刷新 Access Token
-
-```http
-POST /api/auth/refresh-access-token
-Content-Type: application/json
-
-{
-  "refreshToken": "<refresh_token>"
-}
-```
-
-**双 Token 机制说明：**
-
-- **Access Token**: 有效期 15 分钟，用于 API 请求认证
-- **Refresh Token**: 有效期 7 天，用于刷新 Access Token
 - 登录/注册成功后，同时返回 `accessToken` 和 `refreshToken`
-- Access Token 过期后，使用 Refresh Token 获取新的 Access Token
-- Refresh Token 过期后，需要重新登录
-
-### 家庭管理接口
-
-#### 创建家庭
-
-```http
-POST /api/couples/create
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "role": "husband"
-}
-```
-
-#### 加入家庭
-
-```http
-POST /api/couples/join
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "inviteCode": "ABC123"
-}
-```
-
-#### 获取家庭信息
-
-```http
-GET /api/couples/info
-Authorization: Bearer <access_token>
-```
-
-### 记账记录接口
-
-#### 创建记账记录
-
-```http
-POST /api/records
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "amount": 100.50,
-  "type": "expense",
-  "category": "food",
-  "person": "husband",
-  "date": "2024-01-15",
-  "note": "午餐"
-}
-```
-
-#### 获取记账记录列表
-
-```http
-GET /api/records?page=1&limit=20&type=expense&start_date=2024-01-01&end_date=2024-01-31&person=husband
-Authorization: Bearer <access_token>
-```
-
-#### 获取按日期分组的记账明细
-
-```http
-GET /api/records/grouped-by-date?page=1&limit=50&type=expense&start_date=2024-01-01&end_date=2024-01-31&person=husband
-Authorization: Bearer <access_token>
-```
-
-接口返回示例（`data.list` 为按天分组）：
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "data": {
-    "list": [
-      {
-        "date": "2024-01-15",
-        "totalIncome": 200,
-        "totalExpense": 112,
-        "balance": 88,
-        "records": []
-      }
-    ],
-    "pagination": {
-      "page": 1,
-      "limit": 50,
-      "total": 120,
-      "totalPages": 3
-    }
-  },
-  "timestamp": 1711111111
-}
-```
-
-#### 获取单条记录
-
-```http
-GET /api/records/:id
-Authorization: Bearer <access_token>
-```
-
-#### 更新记账记录
-
-```http
-PUT /api/records/:id
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "amount": 150.00,
-  "note": "晚餐"
-}
-```
-
-#### 删除记账记录
-
-```http
-DELETE /api/records/:id
-Authorization: Bearer <access_token>
-```
-
-### 统计分析接口
-
-#### 获取主页概览（总余额/总收入/总支出/最近记录）
-
-```http
-GET /api/statistics/home-overview?limit=10
-Authorization: Bearer <access_token>
-```
-
-#### 获取汇总统计
-
-```http
-GET /api/statistics/summary?start_date=2024-01-01&end_date=2024-01-31
-Authorization: Bearer <access_token>
-```
-
-#### 按分类统计
-
-```http
-GET /api/statistics/by-category?start_date=2024-01-01&end_date=2024-01-31
-Authorization: Bearer <access_token>
-```
-
-#### 按人员统计
-
-```http
-GET /api/statistics/by-person?start_date=2024-01-01&end_date=2024-01-31
-Authorization: Bearer <access_token>
-```
-
-#### 按月份统计
-
-```http
-GET /api/statistics/by-month?year=2024
-Authorization: Bearer <access_token>
-```
+- `accessToken` 默认有效期 15 分钟，用于业务接口认证
+- `refreshToken` 默认有效期 7 天，用于刷新 `accessToken`
+- 需要认证的接口，请在请求头中传递：`Authorization: Bearer <access_token>`
 
 ## 数据分类
 
@@ -467,8 +283,12 @@ accountingTool/
 │   ├── controllers/
 │   │   ├── authController.ts
 │   │   ├── coupleController.ts
+│   │   ├── diaryController.ts
+│   │   ├── photoController.ts
 │   │   ├── recordController.ts
-│   │   └── statisticsController.ts
+│   │   ├── statisticsController.ts
+│   │   ├── wishController.ts
+│   │   └── anniversaryController.ts
 │   ├── database/
 │   │   └── prisma.ts          # Prisma 客户端实例
 │   ├── middleware/
@@ -478,25 +298,34 @@ accountingTool/
 │   ├── routes/
 │   │   ├── authRoutes.ts
 │   │   ├── coupleRoutes.ts
+│   │   ├── familyRoutes.ts
+│   │   ├── diaryRoutes.ts
+│   │   ├── photoRoutes.ts
+│   │   ├── wishRoutes.ts
+│   │   ├── anniversaryRoutes.ts
 │   │   ├── recordRoutes.ts
-│   │   └── statisticsRoutes.ts
+│   │   ├── statisticsRoutes.ts
+│   │   └── index.ts
 │   ├── services/
 │   │   ├── authService.ts
 │   │   ├── coupleService.ts
+│   │   ├── diaryService.ts
+│   │   ├── photoService.ts
+│   │   ├── wishService.ts
+│   │   ├── anniversaryService.ts
 │   │   ├── recordService.ts
 │   │   └── statisticsService.ts
 │   ├── types/
 │   │   └── index.ts           # TypeScript 类型定义
 │   ├── utils/
+│   │   ├── family.ts          # 家庭关系工具
 │   │   ├── helpers.ts         # 工具函数
 │   │   └── logger.ts          # 日志配置
 │   └── server.ts              # 应用入口
 ├── docker-compose.yml
 ├── Dockerfile
-├── Dockerfile.prod
 ├── .env.example
-├── .env.production
-├── deploy.sh
+├── openapi.yaml
 └── package.json
 ```
 
