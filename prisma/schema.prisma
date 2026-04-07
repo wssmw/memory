@@ -15,6 +15,10 @@ model User {
   avatar        String?
   familyMembers FamilyMember[]
   records       Record[]
+  diaries       Diary[]
+  photos        Photo[]
+  wishes        Wish[]
+  anniversaries Anniversary[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -22,15 +26,19 @@ model User {
 }
 
 model Family {
-  id         String         @id @default(uuid())
-  name       String         @default("我的家庭")
-  inviteCode String         @unique
-  status     FamilyStatus   @default(active)
-  maxMembers Int            @default(10)
-  members    FamilyMember[]
-  records    Record[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id            String         @id @default(uuid())
+  name          String         @default("我的家庭")
+  inviteCode    String         @unique
+  status        FamilyStatus   @default(active)
+  maxMembers    Int            @default(10)
+  members       FamilyMember[]
+  records       Record[]
+  diaries       Diary[]
+  photos        Photo[]
+  wishes        Wish[]
+  anniversaries Anniversary[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@map("families")
 }
@@ -53,22 +61,90 @@ model FamilyMember {
 }
 
 model Record {
-  id         String      @id @default(uuid())
-  familyId    String
-  family      Family      @relation(fields: [familyId], references: [id])
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  amount      Decimal     @db.Decimal(10, 2)
-  type        RecordType
-  category    String
-  person      Person
-  date        DateTime    @db.Date
-  note        String?
-  deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        String     @id @default(uuid())
+  familyId  String
+  family    Family     @relation(fields: [familyId], references: [id])
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  amount    Decimal    @db.Decimal(10, 2)
+  type      RecordType
+  category  String
+  person    Person
+  date      DateTime   @db.Date
+  note      String?
+  deletedAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
   @@map("records")
+}
+
+model Diary {
+  id        String   @id @default(uuid())
+  familyId  String
+  family    Family   @relation(fields: [familyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  content   String   @db.Text
+  location  String?
+  mood      String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familyId, createdAt])
+  @@map("diaries")
+}
+
+model Photo {
+  id        String   @id @default(uuid())
+  familyId  String
+  family    Family   @relation(fields: [familyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  url       String
+  title     String?
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familyId, createdAt])
+  @@map("photos")
+}
+
+model Wish {
+  id          String     @id @default(uuid())
+  familyId    String
+  family      Family     @relation(fields: [familyId], references: [id])
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  title       String
+  description String?    @db.Text
+  price       Decimal?   @db.Decimal(10, 2)
+  category    String?
+  status      WishStatus @default(pending)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([familyId, createdAt])
+  @@map("wishes")
+}
+
+model Anniversary {
+  id          String   @id @default(uuid())
+  familyId    String
+  family      Family   @relation(fields: [familyId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  name        String
+  date        DateTime @db.Date
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([familyId, date])
+  @@map("anniversaries")
 }
 
 enum FamilyStatus {
@@ -109,4 +185,9 @@ enum Person {
   grandfather
   grandmother
   other
+}
+
+enum WishStatus {
+  pending
+  completed
 }

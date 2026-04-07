@@ -8,7 +8,6 @@ export class CoupleController {
     try {
       const userId = req.user!.id;
       const { role } = req.body;
-      console.log(userId,role,'userId,role');
       const result = await coupleService.createCouple(userId, role);
 
       res.status(201).json({

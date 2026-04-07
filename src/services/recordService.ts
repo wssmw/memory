@@ -1,6 +1,7 @@
 import prisma from '../database/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { formatDate } from '../utils/helpers';
+import { buildLegacyUser, getRequiredFamilyMembership } from '../utils/family';
 
 export interface RecordQueryParams {
   page?: number;
@@ -12,34 +13,6 @@ export interface RecordQueryParams {
 }
 
 export interface GroupedRecordQueryParams extends RecordQueryParams {}
-
-async function getActiveFamilyMembership(userId: string) {
-  return prisma.familyMember.findFirst({
-    where: {
-      userId,
-      status: 'active',
-    },
-    orderBy: {
-      joinedAt: 'asc',
-    },
-  });
-}
-
-function buildLegacyUser(user: {
-  id: string;
-  name: string;
-  familyMembers?: { familyId: string; role: string | null }[];
-}) {
-  const membership = user.familyMembers?.[0];
-
-  return {
-    id: user.id,
-    name: user.name,
-    role: membership?.role ?? null,
-    coupleId: membership?.familyId ?? null,
-    familyId: membership?.familyId ?? null,
-  };
-}
 
 export class RecordService {
   async createRecord(
@@ -53,11 +26,7 @@ export class RecordService {
       note?: string;
     }
   ) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const record = await prisma.record.create({
       data: {
@@ -98,11 +67,7 @@ export class RecordService {
   }
 
   async getRecords(userId: string, params: RecordQueryParams) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const { page = 1, limit = 20, type, startDate, endDate, person } = params;
     const skip = (page - 1) * limit;
@@ -112,22 +77,13 @@ export class RecordService {
       deletedAt: null,
     };
 
-    if (type) {
-      where.type = type;
-    }
-
-    if (person) {
-      where.person = person;
-    }
+    if (type) where.type = type;
+    if (person) where.person = person;
 
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) {
-        where.date.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.date.lte = new Date(endDate);
-      }
+      if (startDate) where.date.gte = new Date(startDate);
+      if (endDate) where.date.lte = new Date(endDate);
     }
 
     const [records, total] = await Promise.all([
@@ -174,11 +130,7 @@ export class RecordService {
   }
 
   async getRecordsGroupedByDate(userId: string, params: GroupedRecordQueryParams) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const { page = 1, limit = 20, type, startDate, endDate, person } = params;
     const skip = (page - 1) * limit;
@@ -188,22 +140,13 @@ export class RecordService {
       deletedAt: null,
     };
 
-    if (type) {
-      where.type = type;
-    }
-
-    if (person) {
-      where.person = person;
-    }
+    if (type) where.type = type;
+    if (person) where.person = person;
 
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) {
-        where.date.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.date.lte = new Date(endDate);
-      }
+      if (startDate) where.date.gte = new Date(startDate);
+      if (endDate) where.date.lte = new Date(endDate);
     }
 
     const [records, total] = await Promise.all([
@@ -240,16 +183,13 @@ export class RecordService {
       user: buildLegacyUser(record.user),
     }));
 
-    const groupedMap = new Map<
-      string,
-      {
-        date: string;
-        totalIncome: number;
-        totalExpense: number;
-        balance: number;
-        records: typeof normalizedRecords;
-      }
-    >();
+    const groupedMap = new Map<string, {
+      date: string;
+      totalIncome: number;
+      totalExpense: number;
+      balance: number;
+      records: typeof normalizedRecords;
+    }>();
 
     for (const record of normalizedRecords) {
       const day = formatDate(new Date(record.date));
@@ -267,20 +207,15 @@ export class RecordService {
       const dayGroup = groupedMap.get(day)!;
       const amount = Number(record.amount);
 
-      if (record.type === 'income') {
-        dayGroup.totalIncome += amount;
-      } else {
-        dayGroup.totalExpense += amount;
-      }
+      if (record.type === 'income') dayGroup.totalIncome += amount;
+      else dayGroup.totalExpense += amount;
 
       dayGroup.balance = dayGroup.totalIncome - dayGroup.totalExpense;
       dayGroup.records.push(record);
     }
 
-    const list = Array.from(groupedMap.values());
-
     return {
-      list,
+      list: Array.from(groupedMap.values()),
       pagination: {
         page,
         limit,
@@ -291,11 +226,7 @@ export class RecordService {
   }
 
   async getRecordById(userId: string, recordId: string) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const record = await prisma.record.findFirst({
       where: {
@@ -346,11 +277,7 @@ export class RecordService {
       note?: string;
     }
   ) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const existingRecord = await prisma.record.findFirst({
       where: {
@@ -369,9 +296,7 @@ export class RecordService {
     }
 
     const updateData: any = { ...data };
-    if (data.date) {
-      updateData.date = new Date(data.date);
-    }
+    if (data.date) updateData.date = new Date(data.date);
 
     const record = await prisma.record.update({
       where: { id: recordId },
@@ -404,11 +329,7 @@ export class RecordService {
   }
 
   async deleteRecord(userId: string, recordId: string) {
-    const membership = await getActiveFamilyMembership(userId);
-
-    if (!membership) {
-      throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
-    }
+    const membership = await getRequiredFamilyMembership(userId);
 
     const existingRecord = await prisma.record.findFirst({
       where: {

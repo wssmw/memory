@@ -2,18 +2,16 @@ import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import authRoutes from './routes/authRoutes';
-import coupleRoutes from './routes/coupleRoutes';
-import recordRoutes from './routes/recordRoutes';
-import statisticsRoutes from './routes/statisticsRoutes';
+import apiRoutes from './routes';
 import logger from './utils/logger';
 import prisma from './database/prisma';
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 
 app.use((req: any, res: any, next: any) => {
   const corsFn = require('cors');
@@ -33,6 +31,7 @@ app.use(morgan('combined', {
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -49,20 +48,16 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     success: true,
     data: { status: 'healthy', timestamp: Math.floor(Date.now() / 1000) },
   });
 });
 
-app.use('/api/auth', authRoutes);
-app.use('/api/couples', coupleRoutes);
-app.use('/api/records', recordRoutes);
-app.use('/api/statistics', statisticsRoutes);
+app.use('/api', apiRoutes);
 
 app.use(notFoundHandler);
-
 app.use(errorHandler);
 
 async function startServer() {
