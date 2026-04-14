@@ -181,15 +181,36 @@ export class FamilyService {
       throw new AppError('FAMILY_FULL', '家庭已满员', 400);
     }
 
-    await prisma.familyMember.create({
-      data: {
-        familyId: family.id,
-        userId,
-        role,
-        permissionRole: 'member',
-        status: 'active',
+    const previousMembership = await prisma.familyMember.findUnique({
+      where: {
+        familyId_userId: {
+          familyId: family.id,
+          userId,
+        },
       },
     });
+
+    if (previousMembership) {
+      await prisma.familyMember.update({
+        where: { id: previousMembership.id },
+        data: {
+          role,
+          permissionRole: 'member',
+          status: 'active',
+          joinedAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.familyMember.create({
+        data: {
+          familyId: family.id,
+          userId,
+          role,
+          permissionRole: 'member',
+          status: 'active',
+        },
+      });
+    }
 
     const updatedFamily = await getFamilyWithActiveMembers(family.id);
     return buildFamilyResponse(updatedFamily!);
