@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { familyService } from '../services/familyService';
 import { getCurrentTimestamp } from '../utils/helpers';
+import { AppError } from '../middleware/errorHandler';
 
 export class FamilyController {
   async createFamily(req: AuthRequest, res: Response, next: NextFunction) {
@@ -61,7 +62,13 @@ export class FamilyController {
   async removeMember(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.id;
-      const memberId = req.params.memberId;
+      const rawMemberId = req.params.memberId;
+      const memberId = Array.isArray(rawMemberId) ? rawMemberId[0] : rawMemberId;
+
+      if (!memberId) {
+        throw new AppError('VALIDATION_ERROR', '缺少成员 ID', 400);
+      }
+
       const result = await familyService.removeMember(userId, memberId);
 
       res.status(200).json({
