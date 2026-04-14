@@ -1,14 +1,16 @@
 import { Router } from 'express';
-import { coupleController } from '../controllers/coupleController';
+import { familyController } from '../controllers/familyController';
 import { authenticate } from '../middleware/auth';
-import { validateRequest, createCoupleSchema, joinCoupleSchema } from '../middleware/validation';
+import { validateRequest, createFamilySchema, joinFamilySchema } from '../middleware/validation';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.post('/', validateRequest(createCoupleSchema), coupleController.createCouple);
-router.post('/join', validateRequest(joinCoupleSchema), coupleController.joinCouple);
-router.get('/current', coupleController.getCoupleInfo);
+router.post('/', validateRequest(createFamilySchema), familyController.createFamily);
+router.post('/join', validateRequest(joinFamilySchema), familyController.joinFamily);
+router.get('/current', familyController.getFamilyInfo);
+router.delete('/members/:memberId', familyController.removeMember);
+router.post('/leave', familyController.leaveFamily);
 
 export default router;

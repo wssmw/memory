@@ -7,9 +7,9 @@ import { AppError } from '../middleware/errorHandler';
 export class AuthController {
   async register(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { email, password, name, role } = req.body;
+      const { email, password, name } = req.body;
 
-      const result = await authService.register(email, password, name, role);
+      const result = await authService.register(email, password, name);
 
       res.status(201).json({
         success: true,

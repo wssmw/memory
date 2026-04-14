@@ -19,8 +19,7 @@ export class AuthService {
   async register(
     email: string,
     password: string,
-    name: string,
-    _role: 'husband' | 'wife'
+    name: string
   ) {
     const existingUser = await prisma.user.findUnique({
       where: { email },

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import authRoutes from './authRoutes';
-import coupleRoutes from './coupleRoutes';
 import familyRoutes from './familyRoutes';
 import recordRoutes from './recordRoutes';
 import statisticsRoutes from './statisticsRoutes';
@@ -12,7 +11,6 @@ import anniversaryRoutes from './anniversaryRoutes';
 const apiRoutes = Router();
 
 apiRoutes.use('/auth', authRoutes);
-apiRoutes.use('/couples', coupleRoutes);
 apiRoutes.use('/families', familyRoutes);
 apiRoutes.use('/records', recordRoutes);
 apiRoutes.use('/statistics', statisticsRoutes);

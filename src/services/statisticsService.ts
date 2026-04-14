@@ -195,7 +195,7 @@ export class StatisticsService {
       throw new AppError('NOT_IN_COUPLE', '用户未加入家庭', 400);
     }
 
-    const where: any = {
+    const where: Prisma.RecordWhereInput = {
       familyId: membership.familyId,
       deletedAt: null,
     };
@@ -210,57 +210,74 @@ export class StatisticsService {
       }
     }
 
-    const husbandData = await prisma.record.aggregate({
-      where: { ...where, person: 'husband' },
+    const grouped = await prisma.record.groupBy({
+      by: ['person', 'type'],
+      where,
       _sum: { amount: true },
       _count: true,
     });
 
-    const wifeData = await prisma.record.aggregate({
-      where: { ...where, person: 'wife' },
-      _sum: { amount: true },
-      _count: true,
+    const familyMembers = await prisma.familyMember.findMany({
+      where: {
+        familyId: membership.familyId,
+        status: 'active',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ joinedAt: 'asc' }],
+    });
+
+    const statsMap = new Map<string, {
+      role: string;
+      name: string;
+      totalIncome: number;
+      totalExpense: number;
+      count: number;
+    }>();
+
+    familyMembers.forEach((member) => {
+      const role = member.role || 'other';
+      if (!statsMap.has(role)) {
+        statsMap.set(role, {
+          role,
+          name: member.user.name || '家庭成员',
+          totalIncome: 0,
+          totalExpense: 0,
+          count: 0,
+        });
+      }
+    });
+
+    grouped.forEach((item) => {
+      const role = item.person;
+      if (!statsMap.has(role)) {
+        statsMap.set(role, {
+          role,
+          name: role === 'other' ? '其他成员' : role,
+          totalIncome: 0,
+          totalExpense: 0,
+          count: 0,
+        });
+      }
+
+      const current = statsMap.get(role)!;
+      const amount = Number(item._sum.amount) || 0;
+      current.count += item._count;
+      if (item.type === 'income') {
+        current.totalIncome += amount;
+      } else {
+        current.totalExpense += amount;
+      }
     });
 
     return {
-      husband: {
-        totalIncome: Number(
-          (
-            await prisma.record.aggregate({
-              where: { ...where, type: 'income', person: 'husband' },
-              _sum: { amount: true },
-            })
-          )._sum.amount || 0
-        ),
-        totalExpense: Number(
-          (
-            await prisma.record.aggregate({
-              where: { ...where, type: 'expense', person: 'husband' },
-              _sum: { amount: true },
-            })
-          )._sum.amount || 0
-        ),
-        count: husbandData._count,
-      },
-      wife: {
-        totalIncome: Number(
-          (
-            await prisma.record.aggregate({
-              where: { ...where, type: 'income', person: 'wife' },
-              _sum: { amount: true },
-            })
-          )._sum.amount || 0
-        ),
-        totalExpense: Number(
-          (
-            await prisma.record.aggregate({
-              where: { ...where, type: 'expense', person: 'wife' },
-              _sum: { amount: true },
-            })
-          )._sum.amount || 0
-        ),
-        count: wifeData._count,
-      },
+      members: Array.from(statsMap.values()),
     };
   }
 

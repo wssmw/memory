@@ -27,11 +27,13 @@ const dateStringSchema = z.string().refine(
   { message: '日期格式不正确' }
 );
 
+const PERSON_VALUES = z.enum(['husband', 'wife', 'father', 'mother', 'son', 'daughter', 'grandfather', 'grandmother', 'other']);
+const FAMILY_ROLE_VALUES = z.enum(['husband', 'wife', 'father', 'mother', 'son', 'daughter', 'grandfather', 'grandmother', 'other']);
+
 export const registerSchema = z.object({
   email: z.string().email('邮箱格式不正确'),
   password: z.string().min(6, '密码至少需要 6 个字符'),
   name: z.string().min(1, '昵称不能为空').max(50, '昵称最多 50 个字符'),
-  role: z.enum(['husband', 'wife']),
 });
 
 export const loginSchema = z.object({
@@ -54,7 +56,7 @@ export const createRecordSchema = z.object({
       message: '分类不在预定义列表中',
     }
   ),
-  person: z.enum(['husband', 'wife']),
+  person: PERSON_VALUES,
   date: z.string().refine(
     (val) => {
       const date = new Date(val);
@@ -84,7 +86,7 @@ export const updateRecordSchema = z.object({
       '分类不在预定义列表中'
     )
     .optional(),
-  person: z.enum(['husband', 'wife']).optional(),
+  person: PERSON_VALUES.optional(),
   date: z.string().refine(
     (val) => {
       const date = new Date(val);
@@ -95,12 +97,13 @@ export const updateRecordSchema = z.object({
   note: z.string().max(500, '备注最多 500 个字符').optional(),
 });
 
-export const joinCoupleSchema = z.object({
+export const joinFamilySchema = z.object({
   inviteCode: z.string().length(6, '邀请码必须是 6 位'),
+  role: FAMILY_ROLE_VALUES,
 });
 
-export const createCoupleSchema = z.object({
-  role: z.enum(['husband', 'wife']),
+export const createFamilySchema = z.object({
+  role: FAMILY_ROLE_VALUES,
 });
 
 export const createDiarySchema = z.object({

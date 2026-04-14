@@ -1,4 +1,5 @@
 import prisma from '../database/prisma';
+import { Person } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { formatDate } from '../utils/helpers';
 import { buildLegacyUser, getRequiredFamilyMembership } from '../utils/family';
@@ -9,7 +10,7 @@ export interface RecordQueryParams {
   type?: 'income' | 'expense';
   startDate?: string;
   endDate?: string;
-  person?: 'husband' | 'wife';
+  person?: Person;
 }
 
 export interface GroupedRecordQueryParams extends RecordQueryParams {}
@@ -21,7 +22,7 @@ export class RecordService {
       amount: number;
       type: 'income' | 'expense';
       category: string;
-      person: 'husband' | 'wife';
+      person: Person;
       date: string;
       note?: string;
     }
@@ -272,7 +273,7 @@ export class RecordService {
       amount?: number;
       type?: 'income' | 'expense';
       category?: string;
-      person?: 'husband' | 'wife';
+      person?: Person;
       date?: string;
       note?: string;
     }

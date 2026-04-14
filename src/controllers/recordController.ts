@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { Person } from '@prisma/client';
 import { AuthRequest } from '../types';
 import { recordService, RecordQueryParams } from '../services/recordService';
 import { getCurrentTimestamp } from '../utils/helpers';
@@ -31,7 +32,7 @@ export class RecordController {
         type: req.query.type as 'income' | 'expense' | undefined,
         startDate: req.query.start_date as string | undefined,
         endDate: req.query.end_date as string | undefined,
-        person: req.query.person as 'husband' | 'wife' | undefined,
+        person: req.query.person as Person | undefined,
       };
 
       const result = await recordService.getRecords(userId, params);
@@ -56,7 +57,7 @@ export class RecordController {
         type: req.query.type as 'income' | 'expense' | undefined,
         startDate: req.query.start_date as string | undefined,
         endDate: req.query.end_date as string | undefined,
-        person: req.query.person as 'husband' | 'wife' | undefined,
+        person: req.query.person as Person | undefined,
       };
 
       const result = await recordService.getRecordsGroupedByDate(userId, params);

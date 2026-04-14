@@ -44,16 +44,17 @@ model Family {
 }
 
 model FamilyMember {
-  id        String             @id @default(uuid())
-  familyId  String
-  userId    String
-  role      FamilyRole?
-  status    FamilyMemberStatus @default(active)
-  joinedAt  DateTime           @default(now())
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  family    Family             @relation(fields: [familyId], references: [id])
-  user      User               @relation(fields: [userId], references: [id])
+  id             String                @id @default(uuid())
+  familyId       String
+  userId         String
+  role           FamilyRole?
+  permissionRole FamilyPermissionRole  @default(member)
+  status         FamilyMemberStatus    @default(active)
+  joinedAt       DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  family         Family                @relation(fields: [familyId], references: [id])
+  user           User                  @relation(fields: [userId], references: [id])
 
   @@unique([familyId, userId])
   @@index([userId, status])
@@ -156,6 +157,11 @@ enum FamilyMemberStatus {
   pending
   active
   removed
+}
+
+enum FamilyPermissionRole {
+  owner
+  member
 }
 
 enum FamilyRole {
